@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../widgets/home_screen.dart';
 import '../widgets/splash_screen.dart';
+import '../../features/news/news_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/splash',
@@ -14,6 +15,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/home',
       builder: (context, state) => const HomeScreen(),
+    ),
+    GoRoute(
+      path: '/news',
+      builder: (context, state) => const UehNewsPage(),
     ),
   ],
   errorBuilder: (context, state) => Scaffold(

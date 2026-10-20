@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
-import 'routers/router.dart';
+import 'core/router/app_router.dart';
 
 void main() {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +19,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'UEH',
       routerConfig: appRouter,
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        overscroll: false,
+      ),
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -35,9 +38,14 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF006B78),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006B78)),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF006B78),
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
         ),
+        scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
       ),
     );
