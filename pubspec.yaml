@@ -74,6 +74,7 @@ flutter:
     - images/ueh_splash.png
     - images/logo-header.png
     - images/logo-primary.png
+    - images/ueh_campus.jpg
     - assets/sdg/
 
 flutter_native_splash:

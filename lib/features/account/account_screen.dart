@@ -131,120 +131,181 @@ class AccountScreenState extends State<AccountScreen> {
 
   Widget _buildLoginForm() {
     return ColoredBox(
-      color: const Color(0xFFF2F7F7),
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(
-                    Icons.account_circle_outlined,
-                    size: 60,
-                    color: _uehGreen,
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Đăng nhập tài khoản UEH',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 26),
-                  TextFormField(
-                    controller: _studentIdController,
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.next,
-                    decoration: _inputDecoration('Mã số sinh viên'),
-                    validator: (value) => value == null || value.trim().isEmpty
-                        ? 'Vui lòng nhập mã số sinh viên.'
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => login(),
-                    decoration: _inputDecoration('Mật khẩu').copyWith(
-                      suffixIcon: IconButton(
-                        tooltip: _obscurePassword
-                            ? 'Hiện mật khẩu'
-                            : 'Ẩn mật khẩu',
-                        onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
+      color: const Color(0xFFF4FAFA),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: 923 / 500,
+              child: Image.asset('images/ueh_campus.jpg', fit: BoxFit.cover),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Chào mừng đến với UEH',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
                         ),
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Nơi đào tạo nhà quản lý và doanh nhân thành đạt',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFF555555),
+                          ),
                         ),
-                      ),
-                    ),
-                    validator: (value) => value == null || value.isEmpty
-                        ? 'Vui lòng nhập mật khẩu.'
-                        : null,
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Color(0xFFB3261E)),
-                    ),
-                    if (_error!.contains('kết nối Internet')) ...[
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: _openWifiPortal,
-                        icon: const Icon(Icons.wifi_tethering_rounded),
-                        label: const Text('Kết nối Wi‑Fi UEH'),
-                      ),
-                    ],
-                  ],
-                  const SizedBox(height: 22),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _uehGreen,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    onPressed: _isSubmitting ? null : login,
-                    child: _isSubmitting
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                        const SizedBox(height: 28),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextFormField(
+                                controller: _studentIdController,
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.next,
+                                decoration: _inputDecoration(
+                                  'Tên đăng nhập',
+                                  'Nhập tên đăng nhập',
+                                ),
+                                validator: (value) =>
+                                    value == null || value.trim().isEmpty
+                                    ? 'Vui lòng nhập tên đăng nhập.'
+                                    : null,
+                              ),
+                              const SizedBox(height: 20),
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => login(),
+                                decoration: _inputDecoration(
+                                  'Mật khẩu',
+                                  'Nhập mật khẩu',
+                                ).copyWith(
+                                  suffixIcon: IconButton(
+                                    tooltip: _obscurePassword
+                                        ? 'Hiện mật khẩu'
+                                        : 'Ẩn mật khẩu',
+                                    onPressed: () => setState(
+                                      () => _obscurePassword = !_obscurePassword,
+                                    ),
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) =>
+                                    value == null || value.isEmpty
+                                    ? 'Vui lòng nhập mật khẩu.'
+                                    : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Color(0xFFB3261E)),
+                          ),
+                          if (_error!.contains('kết nối Internet')) ...[
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: _openWifiPortal,
+                              icon: const Icon(Icons.wifi_tethering_rounded),
+                              label: const Text('Kết nối Wi‑Fi UEH'),
                             ),
-                          )
-                        : const Text('Đăng nhập'),
+                          ],
+                        ],
+                        const SizedBox(height: 32),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _uehGreen,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(54),
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          onPressed: _isSubmitting ? null : login,
+                          child: _isSubmitting
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('ĐĂNG NHẬP'),
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _uehGreen,
+                            side: const BorderSide(color: _uehGreen),
+                            minimumSize: const Size.fromHeight(54),
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: () =>
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Đăng nhập bằng email UEH chưa được hỗ trợ.',
+                                  ),
+                                ),
+                              ),
+                          child: const Text('ĐĂNG NHẬP BẰNG EMAIL UEH'),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  InputDecoration _inputDecoration(String label) => InputDecoration(
-    labelText: label,
-    filled: true,
-    fillColor: Colors.white,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: Color(0xFFD2E1E2)),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: _uehGreen, width: 1.5),
-    ),
-  );
+  InputDecoration _inputDecoration(String label, String hint) =>
+      InputDecoration(
+        labelText: label,
+        hintText: hint,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(color: Color(0xFF888888), fontSize: 14),
+        hintStyle: const TextStyle(color: Color(0xFF888888), fontSize: 18),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF444444)),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: _uehGreen, width: 2),
+        ),
+      );
 
   Widget _buildProfile(StudentProfile profile) {
     return ColoredBox(

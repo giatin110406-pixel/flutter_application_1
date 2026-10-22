@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:html/parser.dart' as html_parser;
 
 import 'news_item.dart';
 import 'news_api.dart';
@@ -36,6 +37,9 @@ class UehNewsPage extends StatelessWidget {
   }
 }
 
+/// catUid giả cho tab riêng "Tin tức nổi bật" (không thuộc 4 chuyên mục).
+const _kFeaturedCatUid = -1;
+
 class NewsCategory {
   final int catUid;
   final String name;
@@ -52,44 +56,24 @@ const _kUehCategories = [
 
 class NewsScreenState extends State<NewsScreen> {
   static const _uehGreen = Color(0xFF006B78);
-  static const _pageSize = 10;
-  static const _loadMoreThreshold = 300.0;
 
   final _api = NewsApi();
-  final _scrollController = ScrollController();
-
-  int _selectedCatUid = NewsApi.defaultCatUid;
-  String _selectedCatName = 'Cuộc sống UEH';
-  bool _isCategoryLoading = false;
 
   List<NewsItem> _featured = const [];
-  final List<NewsItem> _items = [];
-  int _total = 0;
+  final Map<int, NewsItem> _latest = {};
   bool _isInitialLoading = true;
-  bool _isLoadingMore = false;
   Object? _initialError;
 
   // Tăng số này mỗi lần tải lại để bỏ qua kết quả của request cũ.
   int _generation = 0;
 
-  bool get _hasMore => _items.length < _total;
-
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     _loadInitial();
   }
 
-  @override
-  void dispose() {
-    _scrollController
-      ..removeListener(_onScroll)
-      ..dispose();
-    super.dispose();
-  }
-
-  /// Tải tin nổi bật và trang đầu của danh mục song song.
+  /// Tải tin nổi bật và tin mới nhất của từng chuyên mục.
   Future<void> _loadInitial() async {
     final generation = ++_generation;
     setState(() {
@@ -98,20 +82,23 @@ class NewsScreenState extends State<NewsScreen> {
     });
 
     try {
-      final featured = await _api.getFeatured();
-      final page = await _api.getNews(
-        catUid: _selectedCatUid,
-        limit: _pageSize,
-        offset: 0,
-      );
+      final results = await Future.wait([
+        _api.getFeatured(),
+        for (final c in _kUehCategories)
+          _api.getNews(catUid: c.catUid, limit: 1, offset: 0),
+      ]);
       if (!mounted || generation != _generation) return;
+      final featured = results.first as List<NewsItem>;
 
       setState(() {
         _featured = featured;
-        _items
-          ..clear()
-          ..addAll(page.items);
-        _total = page.total;
+        _latest.clear();
+        for (var i = 0; i < _kUehCategories.length; i++) {
+          final page = results[i + 1] as NewsPage;
+          if (page.items.isNotEmpty) {
+            _latest[_kUehCategories[i].catUid] = page.items.first;
+          }
+        }
         _isInitialLoading = false;
       });
     } catch (error) {
@@ -123,109 +110,27 @@ class NewsScreenState extends State<NewsScreen> {
     }
   }
 
-  /// Chuyển đổi chuyên mục khi bấm vào Category Chip hoặc tên chuyên mục ở thẻ tin.
-  Future<void> _selectCategory(
-    int catUid, [
-    String? catName,
-    bool scrollToCategory = false,
-  ]) async {
-    final name = catName ??
-        _kUehCategories
-            .firstWhere(
-              (c) => c.catUid == catUid,
-              orElse: () =>
-                  NewsCategory(catUid: catUid, name: 'Chuyên mục $catUid'),
-            )
-            .name;
-
-    if (_selectedCatUid == catUid && _items.isNotEmpty) {
-      if (scrollToCategory && _scrollController.hasClients) {
-        _scrollController.animateTo(
-          500,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOut,
-        );
-      }
-      return;
-    }
-
-    final generation = ++_generation;
-    setState(() {
-      _selectedCatUid = catUid;
-      _selectedCatName = name;
-      _items.clear();
-      _total = 0;
-      _isCategoryLoading = true;
-    });
-
-    if (scrollToCategory && _scrollController.hasClients) {
-      _scrollController.animateTo(
-        500,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOut,
-      );
-    }
-
-    try {
-      final page = await _api.getNews(
-        catUid: catUid,
-        limit: _pageSize,
-        offset: 0,
-      );
-      if (!mounted || generation != _generation) return;
-      setState(() {
-        _items
-          ..clear()
-          ..addAll(page.items);
-        _total = page.total;
-        _isCategoryLoading = false;
-      });
-    } catch (error) {
-      if (!mounted || generation != _generation) return;
-      setState(() => _isCategoryLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không tải được tin chuyên mục: $error')),
-      );
-    }
-  }
-
-  /// Lazy load: lấy trang kế tiếp khi người dùng cuộn gần cuối danh sách.
-  Future<void> _loadMore() async {
-    if (_isInitialLoading || _isLoadingMore || _isCategoryLoading || !_hasMore) return;
-    final generation = _generation;
-    setState(() => _isLoadingMore = true);
-
-    try {
-      final page = await _api.getNews(
-        catUid: _selectedCatUid,
-        limit: _pageSize,
-        offset: _items.length,
-      );
-      if (!mounted || generation != _generation) return;
-
-      setState(() {
-        _items.addAll(page.items);
-        // Nếu API trả rỗng dù total còn lớn, dừng lại để không gọi lặp vô hạn.
-        _total = page.items.isEmpty ? _items.length : page.total;
-      });
-    } catch (error) {
-      if (mounted && generation == _generation) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không tải thêm được tin: $error')),
-        );
-      }
-    } finally {
-      if (mounted && generation == _generation) {
-        setState(() => _isLoadingMore = false);
-      }
-    }
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    if (_scrollController.position.extentAfter < _loadMoreThreshold) {
-      _loadMore();
-    }
+  /// Bấm tên chuyên mục: mở trang riêng liệt kê các bài báo của chuyên mục đó.
+  void _openCategory(int catUid, String catName) {
+    final name = catName.isNotEmpty
+        ? catName
+        : _kUehCategories
+              .firstWhere(
+                (c) => c.catUid == catUid,
+                orElse: () =>
+                    NewsCategory(catUid: catUid, name: 'Chuyên mục $catUid'),
+              )
+              .name;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _CategoryScreen(
+          catUid: catUid,
+          catName: name,
+          onOpenArticle: _openDetail,
+          onTabSelected: widget.onTabSelected,
+        ),
+      ),
+    );
   }
 
   /// Gọi từ AppBar (home_screen.dart) để tải lại toàn bộ tin.
@@ -264,7 +169,6 @@ class NewsScreenState extends State<NewsScreen> {
         color: _uehGreen,
         onRefresh: _refresh,
         child: CustomScrollView(
-          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(
             parent: ClampingScrollPhysics(),
           ),
@@ -272,103 +176,19 @@ class NewsScreenState extends State<NewsScreen> {
             // ── Header ───────────────────────────────────────────────────────
             const SliverToBoxAdapter(child: _Header()),
 
-            // ── Tin nổi bật: 1 tin lớn + 4 tin nhỏ ──────────────────────────
+            // ── Tin nổi bật + 4 chuyên mục ──────────────────────────────────
             if (_featured.isNotEmpty)
               SliverToBoxAdapter(
                 child: _FeaturedSection(
-                  featured: _featured,
+                  hero: _featured.first,
+                  latestByCategory: _latest,
                   onTap: _openDetail,
-                  onCategoryTap: (catUid, catName) =>
-                      _selectCategory(catUid, catName, true),
+                  onCategoryTap: _openCategory,
+                  onFeaturedTap: () =>
+                      _openCategory(_kFeaturedCatUid, 'Tin tức nổi bật'),
                 ),
               ),
 
-            // ── Tiêu đề danh mục tin tức ────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: _uehGreen,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _selectedCatName.toUpperCase(),
-                        style: const TextStyle(
-                          color: _uehGreen,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Danh sách tin hoặc trạng thái tải chuyên mục ────────────────
-            if (_isCategoryLoading)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(
-                    child: CircularProgressIndicator(color: _uehGreen),
-                  ),
-                ),
-              )
-            else if (_items.isEmpty)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(
-                    child: Text(
-                      'Không có bài viết nào trong chuyên mục này',
-                      style: TextStyle(color: Color(0xFF888888)),
-                    ),
-                  ),
-                ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final item = _items[index];
-                      return _NewsListTile(
-                        item: item,
-                        onTap: () => _openDetail(item),
-                      );
-                    },
-                    childCount: _items.length,
-                  ),
-                ),
-              ),
-
-            // ── Footer: spinner khi đang tải, thông báo khi hết ──────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: _isLoadingMore
-                      ? const CircularProgressIndicator(color: _uehGreen)
-                      : !_hasMore && _items.isNotEmpty
-                      ? const Text(
-                          'Đã tải hết tin',
-                          style: TextStyle(color: Color(0xFF999999)),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -393,7 +213,7 @@ class _Header extends StatelessWidget {
             style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF006B78),
+              color: Color(0xFFF26F33), // cam UEH
             ),
           ),
           SizedBox(height: 4),
@@ -412,65 +232,117 @@ class _Header extends StatelessWidget {
 
 class _FeaturedSection extends StatelessWidget {
   const _FeaturedSection({
-    required this.featured,
+    required this.hero,
+    required this.latestByCategory,
     required this.onTap,
     required this.onCategoryTap,
+    required this.onFeaturedTap,
   });
 
-  final List<NewsItem> featured;
+  final NewsItem hero;
+  final Map<int, NewsItem> latestByCategory;
   final ValueChanged<NewsItem> onTap;
   final void Function(int catUid, String catName) onCategoryTap;
+  final VoidCallback onFeaturedTap;
 
   @override
   Widget build(BuildContext context) {
-    final hero = featured.first;
-    final smallItems = featured.skip(1).take(4).toList();
-
     return Container(
       color: const Color(0xFFF4F7F8),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       child: Column(
         children: [
           _HeroCard(
             item: hero,
             onTap: () => onTap(hero),
-            onCategoryTap: hero.catUid > 0
-                ? () => onCategoryTap(hero.catUid, hero.categoryName)
-                : null,
+            onFeaturedTap: onFeaturedTap,
           ),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.64,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              for (final item in smallItems)
-                _SmallCard(
-                  item: item,
-                  onTap: () => onTap(item),
-                  onCategoryTap: () {
-                    int catUid = item.catUid;
-                    String catName = item.categoryName;
-                    if (catUid <= 0) {
-                      final match = _kUehCategories.firstWhere(
-                        (c) =>
-                            c.name.toLowerCase() ==
-                            catName.trim().toLowerCase(),
-                        orElse: () => const NewsCategory(
-                          catUid: 219,
-                          name: 'Cuộc sống UEH',
-                        ),
-                      );
-                      catUid = match.catUid;
-                      catName = match.name;
-                    }
-                    onCategoryTap(catUid, catName);
-                  },
+          const SizedBox(height: 16),
+          for (final category in _kUehCategories)
+            if (latestByCategory[category.catUid] != null)
+              _CategoryCard(
+                category: category,
+                item: latestByCategory[category.catUid]!,
+                onTap: () => onTap(latestByCategory[category.catUid]!),
+                onCategoryTap: () =>
+                    onCategoryTap(category.catUid, category.name),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tin nổi bật: ảnh ở trên, khối xanh bên dưới có nhãn, icon SDG và tiêu đề.
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.item,
+    required this.onTap,
+    required this.onFeaturedTap,
+  });
+
+  static const _panelColor = Color(0xFF2E6470);
+
+  final NewsItem item;
+  final VoidCallback onTap;
+  final VoidCallback onFeaturedTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 2,
+      shadowColor: Colors.black38,
+      color: _panelColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onTap,
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              // Tin không có ảnh nền thì dùng thumbnail thay thế.
+              child: _NetworkImage(
+                url: item.backgroundImg.isNotEmpty
+                    ? item.backgroundImg
+                    : item.thumbnailImg,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              children: [
+                // Bấm nhãn: mở tab riêng gồm các tin nổi bật.
+                InkWell(
+                  onTap: onFeaturedTap,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      'TIN TỨC NỔI BẬT',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 20),
+                    ),
+                  ),
                 ),
-            ],
+                if (item.sdgs.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _SdgChips(sdgs: item.sdgs, size: 40),
+                ],
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: onTap,
+                  child: Text(
+                    item.title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -478,265 +350,65 @@ class _FeaturedSection extends StatelessWidget {
   }
 }
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({
-    required this.item,
-    required this.onTap,
-    this.onCategoryTap,
-  });
-
-  final NewsItem item;
-  final VoidCallback onTap;
-  final VoidCallback? onCategoryTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: 16 / 11,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Tin không có ảnh nền thì dùng thumbnail thay thế.
-            _NetworkImage(
-              url: item.backgroundImg.isNotEmpty
-                  ? item.backgroundImg
-                  : item.thumbnailImg,
-            ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Color(0xDD000000)],
-                ),
-              ),
-            ),
-            Positioned(
-              left: 14,
-              right: 14,
-              bottom: 14,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (item.categoryName.isNotEmpty) ...[
-                    GestureDetector(
-                      onTap: onCategoryTap,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF006B78),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          item.categoryName.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  _SdgChips(sdgs: item.sdgs),
-                  const SizedBox(height: 8),
-                  Text(
-                    item.title,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallCard extends StatelessWidget {
-  const _SmallCard({
+/// Thẻ một chuyên mục: tên chuyên mục, icon SDG và tiêu đề tin mới nhất, không có hình.
+class _CategoryCard extends StatelessWidget {
+  const _CategoryCard({
+    required this.category,
     required this.item,
     required this.onTap,
     required this.onCategoryTap,
   });
 
+  final NewsCategory category;
   final NewsItem item;
   final VoidCallback onTap;
   final VoidCallback onCategoryTap;
 
   @override
   Widget build(BuildContext context) {
-    // Tên chuyên mục in hoa (VD: CUỘC SỐNG UEH, KHOA HỌC - GÓC NHÌN CHUYÊN GIA...)
-    final categoryText = item.categoryName.isNotEmpty
-        ? item.categoryName.toUpperCase()
-        : 'CHUYÊN MỤC';
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(4),
-      clipBehavior: Clip.antiAlias,
-      elevation: 1,
-      shadowColor: Colors.black12,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 10,
-              child: _NetworkImage(url: item.thumbnailImg),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Dòng chữ xanh in hoa tên chuyên mục theo đúng web tintucmobile Thầy chiếu
-                    InkWell(
-                      onTap: onCategoryTap,
-                      borderRadius: BorderRadius.circular(2),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                categoryText,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFF005F69),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right,
-                              size: 14,
-                              color: Color(0xFF005F69),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Expanded(
-                      child: Text(
-                        item.title,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          height: 1.3,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _SdgChips(sdgs: item.sdgs, size: 18),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── List tile ───────────────────────────────────────────────────────────────
-
-class _NewsListTile extends StatelessWidget {
-  const _NewsListTile({required this.item, required this.onTap});
-
-  final NewsItem item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.07),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        elevation: 1,
+        shadowColor: Colors.black26,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 110,
-                height: 84,
-                child: _NetworkImage(url: item.thumbnailImg),
-              ),
-              Expanded(
+              // Bấm tên chuyên mục: mở trang các bài báo của chuyên mục đó.
+              InkWell(
+                onTap: onCategoryTap,
                 child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (item.categoryName.isNotEmpty)
-                        Text(
-                          item.categoryName.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF006B78),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      const SizedBox(height: 6),
-                      _SdgChips(sdgs: item.sdgs, size: 22),
-                      const SizedBox(height: 6),
-                      Text(
-                        item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        item.formattedDate,
-                        style: const TextStyle(
-                          color: Color(0xFF888888),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    category.name.toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFF006B78),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              if (item.sdgs.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _SdgChips(sdgs: item.sdgs, size: 36),
+              ],
+              const SizedBox(height: 8),
+              // Bấm tiêu đề: mở trình đọc bài báo.
+              InkWell(
+                onTap: onTap,
+                child: Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    height: 1.3,
+                    color: Color(0xFF1E293B),
                   ),
                 ),
               ),
@@ -982,6 +654,457 @@ class _ArticleDetailScreenState extends State<_ArticleDetailScreen> {
           Navigator.of(context).pop();
         },
       ),
+    );
+  }
+}
+
+// ─── Category screen ─────────────────────────────────────────────────────────
+
+/// Trang các bài báo của một chuyên mục, mở khi bấm tên chuyên mục.
+class _CategoryScreen extends StatefulWidget {
+  const _CategoryScreen({
+    required this.catUid,
+    required this.catName,
+    required this.onOpenArticle,
+    this.onTabSelected,
+  });
+
+  final int catUid;
+  final String catName;
+  final ValueChanged<NewsItem> onOpenArticle;
+  final ValueChanged<int>? onTabSelected;
+
+  @override
+  State<_CategoryScreen> createState() => _CategoryScreenState();
+}
+
+class _CategoryScreenState extends State<_CategoryScreen> {
+  static const _uehGreen = Color(0xFF006B78);
+  static const _pageSize = 10;
+
+  final _api = NewsApi();
+  final _scrollController = ScrollController();
+  final List<NewsItem> _items = [];
+  // Đoạn mở đầu của từng bài, lấy từ nội dung đầy đủ và nhớ lại theo uid.
+  final Map<int, Future<String>> _intros = {};
+  int _page = 1;
+  int _total = 0;
+  bool _isLoading = true;
+  Object? _error;
+
+  int get _totalPages => (_total / _pageSize).ceil();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPage(1);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Tải trang [page] (đánh số từ 1) rồi cuộn lên đầu danh sách.
+  Future<void> _loadPage(int page) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final List<NewsItem> items;
+      final int total;
+      if (widget.catUid == _kFeaturedCatUid) {
+        items = await _api.getFeatured();
+        total = items.length;
+      } else {
+        final result = await _api.getNews(
+          catUid: widget.catUid,
+          limit: _pageSize,
+          offset: (page - 1) * _pageSize,
+        );
+        items = result.items;
+        total = result.total;
+      }
+      if (!mounted) return;
+      setState(() {
+        _items
+          ..clear()
+          ..addAll(items);
+        _total = total;
+        _page = page;
+        _isLoading = false;
+      });
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error;
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// Đoạn văn đầu tiên có chữ của bài; lỗi hoặc không có thì dùng mô tả ngắn.
+  Future<String> _introOf(NewsItem item) {
+    return _intros.putIfAbsent(item.uid, () async {
+      try {
+        final detail = await _api.getNewsDetail(item.uid);
+        final doc = html_parser.parse(detail.content);
+        for (final p in doc.querySelectorAll('p')) {
+          final text = p.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+          if (text.isNotEmpty) return text;
+        }
+      } catch (_) {}
+      return item.shortDesc;
+    });
+  }
+
+  Widget _body() {
+    if (_isLoading && _items.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: _uehGreen));
+    }
+    if (_error != null) {
+      return _ErrorView(
+        message: _error.toString(),
+        onRetry: () => _loadPage(_page),
+      );
+    }
+    return Stack(
+      children: [
+        RefreshIndicator(
+          color: _uehGreen,
+          onRefresh: () => _loadPage(_page),
+          child: ListView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+            children: [
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 5,
+                children: [
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Text(
+                      'Trang chủ',
+                      style: TextStyle(fontSize: 16, color: _uehGreen),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+                  Text(
+                    widget.catName,
+                    style: const TextStyle(fontSize: 16, color: _uehGreen),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (_items.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text(
+                      'Không có bài viết nào trong chuyên mục này',
+                      style: TextStyle(color: Color(0xFF888888)),
+                    ),
+                  ),
+                ),
+              for (final item in _items)
+                _CategoryArticleCard(
+                  item: item,
+                  intro: _introOf(item),
+                  onTap: () => widget.onOpenArticle(item),
+                ),
+              if (_totalPages > 1)
+                _Pager(
+                  page: _page,
+                  totalPages: _totalPages,
+                  onPage: _isLoading ? null : _loadPage,
+                ),
+            ],
+          ),
+        ),
+        if (_isLoading)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              color: _uehGreen,
+              backgroundColor: Colors.transparent,
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        backgroundColor: _uehGreen,
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        title: const Text('Trang chủ'),
+      ),
+      body: _body(),
+      bottomNavigationBar: AppBottomNavigation(
+        selectedIndex: 0,
+        onSelected: (index) {
+          widget.onTabSelected?.call(index);
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+}
+
+/// Thanh chia trang: Về đầu | 1 2 3 | … | Tới cuối. Hiện cửa sổ 3 số trang quanh trang hiện tại.
+class _Pager extends StatelessWidget {
+  const _Pager({
+    required this.page,
+    required this.totalPages,
+    required this.onPage,
+  });
+
+  static const _uehGreen = Color(0xFF2E6470);
+  static const _border = Color(0xFFDDDDDD);
+
+  final int page;
+  final int totalPages;
+  final ValueChanged<int>? onPage;
+
+  @override
+  Widget build(BuildContext context) {
+    final windowSize = totalPages < 3 ? totalPages : 3;
+    final start = (page - 1).clamp(1, totalPages - windowSize + 1);
+    final end = start + windowSize - 1;
+
+    final cells = <Widget>[
+      _cell('Về đầu', enabled: page > 1, onTap: () => onPage?.call(1)),
+      for (var p = start; p <= end; p++)
+        _cell('$p', selected: p == page, onTap: () => onPage?.call(p)),
+      if (end < totalPages)
+        _cell('…', onTap: () => onPage?.call(end + 1)),
+      _cell(
+        'Tới cuối',
+        enabled: page < totalPages,
+        onTap: () => onPage?.call(totalPages),
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: _border),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  for (var i = 0; i < cells.length; i++) ...[
+                    if (i > 0) const VerticalDivider(width: 1, color: _border),
+                    cells[i],
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _cell(
+    String label, {
+    bool selected = false,
+    bool enabled = true,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: enabled && !selected && onPage != null ? onTap : null,
+      child: Container(
+        color: selected ? _uehGreen : null,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 17,
+            color: selected
+                ? Colors.white
+                : enabled
+                ? _uehGreen
+                : const Color(0xFF888888),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryArticleCard extends StatelessWidget {
+  const _CategoryArticleCard({
+    required this.item,
+    required this.intro,
+    required this.onTap,
+  });
+
+  final NewsItem item;
+  final Future<String> intro;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: Colors.white,
+        elevation: 1,
+        shadowColor: Colors.black26,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: Color(0xFF006B78),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Hiện mô tả ngắn trong lúc chờ, rồi thay bằng cả đoạn đầu.
+                FutureBuilder<String>(
+                  future: intro,
+                  initialData: item.shortDesc,
+                  builder: (context, snapshot) => _WrappedIntro(
+                    imageUrl: item.thumbnailImg,
+                    sdgs: item.sdgs,
+                    text: snapshot.data ?? '',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Hình bên trái, icon SDG rồi đoạn intro bên phải hình; chữ chạy hết bên phải
+/// hình thì xuống dưới và trải rộng hết chiều ngang thẻ (kiểu hình float trên web).
+class _WrappedIntro extends StatelessWidget {
+  const _WrappedIntro({
+    required this.imageUrl,
+    required this.sdgs,
+    required this.text,
+  });
+
+  static const _style = TextStyle(
+    fontSize: 16,
+    height: 1.5,
+    color: Color(0xFF171717),
+  );
+  static const _gap = 14.0;
+  static const _sdgSize = 36.0;
+  static const _sdgSpacing = 4.0;
+
+  final String imageUrl;
+  final List<int> sdgs;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final imageWidth = width * 0.38;
+        final imageHeight = imageWidth * 2 / 3;
+        final rightWidth = width - imageWidth - _gap;
+
+        final sdgCount = sdgs.where((s) => s >= 1 && s <= _sdgAssetCount).length;
+        final perRow = ((rightWidth + _sdgSpacing) / (_sdgSize + _sdgSpacing))
+            .floor()
+            .clamp(1, 17);
+        final sdgRows = sdgCount == 0 ? 0 : (sdgCount / perRow).ceil();
+        final sdgHeight = sdgRows == 0
+            ? 0.0
+            : sdgRows * _sdgSize + (sdgRows - 1) * _sdgSpacing + 8;
+
+        // Số dòng chữ nằm vừa bên phải hình, phần còn lại xuống dưới.
+        final lineHeight = _style.fontSize! * _style.height!;
+        final fitLines = ((imageHeight - sdgHeight) / lineHeight).floor();
+
+        var beside = '';
+        var below = text;
+        if (fitLines > 0 && text.isNotEmpty) {
+          final painter = TextPainter(
+            text: TextSpan(text: text, style: _style),
+            textDirection: TextDirection.ltr,
+            maxLines: fitLines,
+          )..layout(maxWidth: rightWidth);
+          if (painter.didExceedMaxLines) {
+            final cut = painter
+                .getPositionForOffset(
+                  Offset(rightWidth, (fitLines - 0.5) * lineHeight),
+                )
+                .offset;
+            beside = text.substring(0, cut).trimRight();
+            below = text.substring(cut).trimLeft();
+          } else {
+            beside = text;
+            below = '';
+          }
+          painter.dispose();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: imageWidth,
+                  height: imageHeight,
+                  child: _NetworkImage(url: imageUrl),
+                ),
+                const SizedBox(width: _gap),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (sdgRows > 0) ...[
+                        _SdgChips(sdgs: sdgs, size: _sdgSize),
+                        const SizedBox(height: 8),
+                      ],
+                      if (beside.isNotEmpty) Text(beside, style: _style),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (below.isNotEmpty)
+              Text(below, style: _style, textAlign: TextAlign.justify),
+          ],
+        );
+      },
     );
   }
 }
