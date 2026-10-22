@@ -3,34 +3,26 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/drawer_menu/app_drawer.dart';
+import '../router/shell_scope.dart';
 import 'app_bottom_navigation.dart';
-import '../../features/account/account_screen.dart';
-import '../../features/attendance/attendance_screen.dart';
-import '../../features/news/news_screen.dart';
-import '../services/student_api.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+/// Khung chung của 4 tab: AppBar, drawer và thanh menu dưới.
+/// Nội dung từng tab do router dựng và truyền vào qua [navigationShell].
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key, required this.navigationShell});
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  final StatefulNavigationShell navigationShell;
 
   static const _uehGreen = Color(0xFF006B78);
-
-  // GlobalKey để gọi reload() trên NewsScreen từ Drawer / AppBar
-  final _newsKey = GlobalKey<NewsScreenState>();
-  final _accountKey = GlobalKey<AccountScreenState>();
-  final _studentApi = StudentApi();
+  static const _titles = ['Trang chủ', 'Thông báo', 'Điểm danh', 'Tài khoản'];
 
   @override
   Widget build(BuildContext context) {
+    final index = navigationShell.currentIndex;
+
     return Scaffold(
       drawer: AppDrawer(
-        api: _studentApi,
+        api: studentApi,
         onNewsTap: () {
           context.push('/news');
         },
@@ -40,60 +32,48 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: Colors.white,
         centerTitle: true,
         title: Text(
-          _tabTitle(_selectedIndex),
+          _titles[index],
           style: const TextStyle(fontWeight: FontWeight.w500),
         ),
         actions: [
-          if (_selectedIndex == 0)
+          if (index == 0)
             IconButton(
               tooltip: 'Tải lại',
-              onPressed: () => _newsKey.currentState?.reload(),
+              onPressed: () => newsScreenKey.currentState?.reload(),
               icon: const FaIcon(FontAwesomeIcons.arrowsRotate),
             ),
-          if (_selectedIndex == 3)
+          if (index == 3)
             IconButton(
               tooltip: 'Đăng xuất',
-              onPressed: () => _accountKey.currentState?.logout(),
+              onPressed: () => accountScreenKey.currentState?.logout(),
               icon: const FaIcon(FontAwesomeIcons.rightFromBracket),
             ),
         ],
       ),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          NewsScreen(
-            key: _newsKey,
-            onTabSelected: (index) => setState(() => _selectedIndex = index),
-          ),
-          _buildEmptyTab(FontAwesomeIcons.bullhorn, 'Thông báo'),
-          AttendanceScreen(api: _studentApi),
-          AccountScreen(key: _accountKey, api: _studentApi),
-        ],
+      body: navigationShell,
+      bottomNavigationBar: AppBottomNavigation(
+        selectedIndex: index,
+        // Bấm lại tab đang chọn thì về màn hình gốc của tab đó.
+        onSelected: (i) =>
+            navigationShell.goBranch(i, initialLocation: i == index),
       ),
-      bottomNavigationBar: _buildBottomMenu(),
     );
   }
+}
 
-  String _tabTitle(int index) {
-    const titles = ['Trang chủ', 'Thông báo', 'Điểm danh', 'Tài khoản'];
-    return titles[index];
-  }
+/// Tab Thông báo (chưa có nội dung).
+class NotificationsTab extends StatelessWidget {
+  const NotificationsTab({super.key});
 
-  Widget _buildBottomMenu() {
-    return AppBottomNavigation(
-      selectedIndex: _selectedIndex,
-      onSelected: (index) => setState(() => _selectedIndex = index),
-    );
-  }
-
-  Widget _buildEmptyTab(FaIconData icon, String title) {
-    return Center(
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(icon, size: 48, color: _uehGreen),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontSize: 18)),
+          FaIcon(FontAwesomeIcons.bullhorn, size: 48, color: Color(0xFF006B78)),
+          SizedBox(height: 12),
+          Text('Thông báo', style: TextStyle(fontSize: 18)),
         ],
       ),
     );

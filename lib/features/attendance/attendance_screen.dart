@@ -157,112 +157,134 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: const Color(0xFFFFFAFC),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
-        child: Center(
+      // Nội dung căn giữa theo chiều dọc để không chừa khoảng trắng lớn bên dưới.
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              children: [
-                const Text(
-                  'Vui lòng nhập hoặc quét mã để điểm danh',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _uehGreen,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                const Text(
-                  'Nhập mã điểm danh',
-                  style: TextStyle(color: Color(0xFF88838A), fontSize: 12),
-                ),
-                TextField(
-                  controller: _codeController,
-                  textAlign: TextAlign.center,
-                  textCapitalization: TextCapitalization.characters,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  decoration: const InputDecoration(
-                    hintText: 'Nhập mã ở đây',
-                    hintStyle: TextStyle(
-                      color: Color(0xFFD5D0D4),
-                      fontSize: 13,
-                    ),
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFCFC9CD)),
-                    ),
-                    focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: _uehGreen, width: 1.5),
-                    ),
-                  ),
-                  onChanged: (_) {
-                    if (_error != null) setState(() => _error = null);
-                  },
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFFB3261E),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 25),
-                const Text(
-                  'Hoặc',
-                  style: TextStyle(color: Color(0xFFC6C0C4), fontSize: 13),
-                ),
-                const SizedBox(height: 17),
-                _ScanButton(
-                  icon: FontAwesomeIcons.qrcode,
-                  label: 'Quét mã QR Code',
-                  onPressed: () => _openScanner('Quét mã QR Code'),
-                ),
-                const SizedBox(height: 12),
-                _ScanButton(
-                  icon: FontAwesomeIcons.barcode,
-                  label: 'Quét mã Barcode',
-                  onPressed: () => _openScanner('Quét mã Barcode'),
-                ),
-                const SizedBox(height: 12),
-                _ScanButton(
-                  icon: FontAwesomeIcons.userCheck,
-                  label: 'Xác thực khuôn mặt',
-                  onPressed: _showFaceRecognitionNotice,
-                ),
-                const SizedBox(height: 29),
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _uehGreen,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFF5B8990),
-                      elevation: 2,
-                    ),
-                    onPressed: _isSubmitting ? null : _submit,
-                    child: _isSubmitting
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Điểm danh',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Vui lòng nhập hoặc quét mã để điểm danh',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _uehGreen,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 52),
+                      const Text(
+                        'Nhập mã điểm danh',
+                        style: TextStyle(
+                          color: Color(0xFF88838A),
+                          fontSize: 15,
+                        ),
+                      ),
+                      TextField(
+                        controller: _codeController,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 22),
+                        textCapitalization: TextCapitalization.characters,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        decoration: const InputDecoration(
+                          hintText: 'Nhập mã ở đây',
+                          hintStyle: TextStyle(
+                            color: Color(0xFFD5D0D4),
+                            fontSize: 18,
                           ),
+                          contentPadding: EdgeInsets.symmetric(vertical: 16),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFFCFC9CD)),
+                          ),
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: _uehGreen,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        onChanged: (_) {
+                          if (_error != null) setState(() => _error = null);
+                        },
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFFB3261E),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 32),
+                      const Text(
+                        'Hoặc',
+                        style: TextStyle(
+                          color: Color(0xFFA9A3A7),
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _ScanButton(
+                        icon: FontAwesomeIcons.qrcode,
+                        label: 'Quét mã QR Code',
+                        onPressed: () => _openScanner('Quét mã QR Code'),
+                      ),
+                      const SizedBox(height: 12),
+                      _ScanButton(
+                        icon: FontAwesomeIcons.barcode,
+                        label: 'Quét mã Barcode',
+                        onPressed: () => _openScanner('Quét mã Barcode'),
+                      ),
+                      const SizedBox(height: 12),
+                      _ScanButton(
+                        icon: FontAwesomeIcons.userCheck,
+                        label: 'Xác thực khuôn mặt',
+                        onPressed: _showFaceRecognitionNotice,
+                      ),
+                      const SizedBox(height: 40),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 58,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _uehGreen,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFF5B8990),
+                            elevation: 2,
+                          ),
+                          onPressed: _isSubmitting ? null : _submit,
+                          child: _isSubmitting
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Điểm danh',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -285,12 +307,15 @@ class _ScanButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 260,
-      height: 38,
+      width: double.infinity,
+      height: 54,
       child: OutlinedButton.icon(
         onPressed: onPressed,
-        icon: FaIcon(icon, size: 15),
-        label: Text(label, style: const TextStyle(fontSize: 13)),
+        icon: FaIcon(icon, size: 20),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        ),
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF006B78),
           side: const BorderSide(color: Color(0xFF006B78)),

@@ -71,7 +71,9 @@ class _NavigationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? const Color(0xFF006B78) : const Color(0xFF789498);
+    // Tab được chọn đậm, các tab còn lại là cùng màu nhưng nhạt hơn.
+    const active = Color(0xFF006B78);
+    final target = selected ? active : active.withValues(alpha: 0.35);
 
     return Semantics(
       button: true,
@@ -79,50 +81,59 @@ class _NavigationItem extends StatelessWidget {
       label: label,
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 28,
-              height: 26,
-              child: Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
-                children: [
-                  Center(child: FaIcon(icon, size: 19, color: color)),
-                  if (showBadge)
-                    Positioned(
-                      top: -3,
-                      right: -2,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFF5555),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Text(
-                          '3',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: target),
+          duration: const Duration(milliseconds: 200),
+          builder: (context, animated, _) {
+            final color = animated ?? target;
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 34,
+                  height: 30,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
+                      Center(child: FaIcon(icon, size: 24, color: color)),
+                      if (showBadge)
+                        Positioned(
+                          top: -3,
+                          right: -2,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF5555),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              '3',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: color, fontSize: 11),
-            ),
-          ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: color, fontSize: 13),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

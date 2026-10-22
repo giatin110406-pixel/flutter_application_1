@@ -63,11 +63,13 @@ class AccountScreenState extends State<AccountScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final connectivity = await Connectivity().checkConnectivity();
-    if (connectivity.contains(ConnectivityResult.none) || connectivity.isEmpty) {
+    if (connectivity.contains(ConnectivityResult.none) ||
+        connectivity.isEmpty) {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _error = 'Bạn chưa có kết nối Internet. Hãy kết nối Wi‑Fi UEH để tiếp tục.';
+          _error =
+              'Bạn chưa có kết nối Internet. Hãy kết nối Wi‑Fi UEH để tiếp tục.';
         });
       }
       return;
@@ -103,7 +105,10 @@ class AccountScreenState extends State<AccountScreen> {
     final uri = Uri.parse(_uehWifiPortalUrl);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        setState(() => _error = 'Không thể mở trang kết nối Wi‑Fi UEH. Vui lòng truy cập thủ công: $_uehWifiPortalUrl');
+        setState(
+          () => _error =
+              'Không thể mở trang kết nối Wi‑Fi UEH. Vui lòng truy cập thủ công: $_uehWifiPortalUrl',
+        );
       }
     }
   }
@@ -191,24 +196,26 @@ class AccountScreenState extends State<AccountScreen> {
                                 obscureText: _obscurePassword,
                                 textInputAction: TextInputAction.done,
                                 onFieldSubmitted: (_) => login(),
-                                decoration: _inputDecoration(
-                                  'Mật khẩu',
-                                  'Nhập mật khẩu',
-                                ).copyWith(
-                                  suffixIcon: IconButton(
-                                    tooltip: _obscurePassword
-                                        ? 'Hiện mật khẩu'
-                                        : 'Ẩn mật khẩu',
-                                    onPressed: () => setState(
-                                      () => _obscurePassword = !_obscurePassword,
+                                decoration:
+                                    _inputDecoration(
+                                      'Mật khẩu',
+                                      'Nhập mật khẩu',
+                                    ).copyWith(
+                                      suffixIcon: IconButton(
+                                        tooltip: _obscurePassword
+                                            ? 'Hiện mật khẩu'
+                                            : 'Ẩn mật khẩu',
+                                        onPressed: () => setState(
+                                          () => _obscurePassword =
+                                              !_obscurePassword,
+                                        ),
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                        ),
+                                      ),
                                     ),
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                    ),
-                                  ),
-                                ),
                                 validator: (value) =>
                                     value == null || value.isEmpty
                                     ? 'Vui lòng nhập mật khẩu.'

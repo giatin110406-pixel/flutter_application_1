@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:go_router/go_router.dart';
 import 'package:html/parser.dart' as html_parser;
 
 import 'news_item.dart';
 import 'news_api.dart';
+import '../../core/router/shell_scope.dart';
 import '../../core/widgets/app_bottom_navigation.dart';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -14,16 +16,22 @@ const _sdgAssetCount = 17;
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 class NewsScreen extends StatefulWidget {
-  const NewsScreen({super.key, this.onTabSelected});
-
-  final ValueChanged<int>? onTabSelected;
+  const NewsScreen({super.key});
 
   @override
   State<NewsScreen> createState() => NewsScreenState();
 }
 
-class UehNewsPage extends StatelessWidget {
+/// Trang tin tức mở từ menu ngăn kéo (route `/news`), có nút tải lại ở góc phải.
+class UehNewsPage extends StatefulWidget {
   const UehNewsPage({super.key});
+
+  @override
+  State<UehNewsPage> createState() => _UehNewsPageState();
+}
+
+class _UehNewsPageState extends State<UehNewsPage> {
+  final _newsKey = GlobalKey<NewsScreenState>();
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +39,15 @@ class UehNewsPage extends StatelessWidget {
       appBar: AppBar(
         leading: const BackButton(),
         title: const Text('Cuộc sống UEH'),
+        actions: [
+          IconButton(
+            tooltip: 'Tải lại',
+            onPressed: () => _newsKey.currentState?.reload(),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
-      body: const NewsScreen(),
+      body: NewsScreen(key: _newsKey),
     );
   }
 }
@@ -121,13 +136,12 @@ class NewsScreenState extends State<NewsScreen> {
                     NewsCategory(catUid: catUid, name: 'Chuyên mục $catUid'),
               )
               .name;
-    Navigator.of(context).push(
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => _CategoryScreen(
           catUid: catUid,
           catName: name,
           onOpenArticle: _openDetail,
-          onTabSelected: widget.onTabSelected,
         ),
       ),
     );
@@ -139,22 +153,15 @@ class NewsScreenState extends State<NewsScreen> {
   Future<void> _refresh() => _loadInitial();
 
   void _openDetail(NewsItem item) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _ArticleDetailScreen(
-          item: item,
-          onTabSelected: widget.onTabSelected,
-        ),
-      ),
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(builder: (_) => _ArticleDetailScreen(item: item)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isInitialLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: _uehGreen),
-      );
+      return const Center(child: CircularProgressIndicator(color: _uehGreen));
     }
     if (_initialError != null) {
       return _ErrorView(
@@ -189,6 +196,27 @@ class NewsScreenState extends State<NewsScreen> {
                 ),
               ),
 
+            // ── Xem thêm: sang trang các bài Tin tức nổi bật ────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _uehGreen,
+                    side: const BorderSide(color: _uehGreen),
+                    minimumSize: const Size.fromHeight(50),
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () =>
+                      _openCategory(_kFeaturedCatUid, 'Tin tức nổi bật'),
+                  child: const Text('Xem thêm'),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -530,10 +558,9 @@ class _ErrorView extends StatelessWidget {
 // ─── Article detail ──────────────────────────────────────────────────────────
 
 class _ArticleDetailScreen extends StatefulWidget {
-  const _ArticleDetailScreen({required this.item, this.onTabSelected});
+  const _ArticleDetailScreen({required this.item});
 
   final NewsItem item;
-  final ValueChanged<int>? onTabSelected;
 
   @override
   State<_ArticleDetailScreen> createState() => _ArticleDetailScreenState();
@@ -649,10 +676,7 @@ class _ArticleDetailScreenState extends State<_ArticleDetailScreen> {
       ),
       bottomNavigationBar: AppBottomNavigation(
         selectedIndex: 0,
-        onSelected: (index) {
-          widget.onTabSelected?.call(index);
-          Navigator.of(context).pop();
-        },
+        onSelected: (index) => _goToTab(context, index),
       ),
     );
   }
@@ -666,13 +690,11 @@ class _CategoryScreen extends StatefulWidget {
     required this.catUid,
     required this.catName,
     required this.onOpenArticle,
-    this.onTabSelected,
   });
 
   final int catUid;
   final String catName;
   final ValueChanged<NewsItem> onOpenArticle;
-  final ValueChanged<int>? onTabSelected;
 
   @override
   State<_CategoryScreen> createState() => _CategoryScreenState();
@@ -853,10 +875,7 @@ class _CategoryScreenState extends State<_CategoryScreen> {
       body: _body(),
       bottomNavigationBar: AppBottomNavigation(
         selectedIndex: 0,
-        onSelected: (index) {
-          widget.onTabSelected?.call(index);
-          Navigator.of(context).pop();
-        },
+        onSelected: (index) => _goToTab(context, index),
       ),
     );
   }
@@ -887,8 +906,7 @@ class _Pager extends StatelessWidget {
       _cell('Về đầu', enabled: page > 1, onTap: () => onPage?.call(1)),
       for (var p = start; p <= end; p++)
         _cell('$p', selected: p == page, onTap: () => onPage?.call(p)),
-      if (end < totalPages)
-        _cell('…', onTap: () => onPage?.call(end + 1)),
+      if (end < totalPages) _cell('…', onTap: () => onPage?.call(end + 1)),
       _cell(
         'Tới cuối',
         enabled: page < totalPages,
@@ -1038,7 +1056,9 @@ class _WrappedIntro extends StatelessWidget {
         final imageHeight = imageWidth * 2 / 3;
         final rightWidth = width - imageWidth - _gap;
 
-        final sdgCount = sdgs.where((s) => s >= 1 && s <= _sdgAssetCount).length;
+        final sdgCount = sdgs
+            .where((s) => s >= 1 && s <= _sdgAssetCount)
+            .length;
         final perRow = ((rightWidth + _sdgSpacing) / (_sdgSize + _sdgSpacing))
             .floor()
             .clamp(1, 17);
@@ -1107,4 +1127,11 @@ class _WrappedIntro extends StatelessWidget {
       },
     );
   }
+}
+
+/// Từ màn hình đang phủ lên khung: đóng các màn hình đã mở rồi sang tab [index].
+void _goToTab(BuildContext context, int index) {
+  final router = GoRouter.of(context);
+  Navigator.of(context).popUntil((route) => route.isFirst);
+  router.go(kTabPaths[index]);
 }
